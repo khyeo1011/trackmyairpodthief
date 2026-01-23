@@ -1,4 +1,3 @@
 findmy
 schedule
 dotenv
-sqlite3
