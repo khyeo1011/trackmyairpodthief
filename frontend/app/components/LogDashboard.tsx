@@ -1,124 +1,191 @@
-// components/LogDashboard.tsx
 "use client";
 
-import { useState, useEffect, ChangeEvent } from "react";
-import { fetchPollLogs } from "@/lib/api";
-import { PollLog, FetchLogsParams } from "@/lib/types";
+import { useState, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
-// ... other imports
+import { PollLog, FetchLogsParams } from "@/lib/types";
+import { fetchPollLogs } from "@/lib/api";
 
+
+// 1. Dynamic Map Import (Prevents SSR Errors)
+const LogMap = dynamic(() => import("./LogMap"), {
+    ssr: false,
+    loading: () => (
+        <div className="h-[450px] w-full bg-slate-100 animate-pulse rounded-xl flex items-center justify-center border border-slate-200">
+            <span className="text-slate-400 font-medium">Initializing Map Engine...</span>
+        </div>
+    )
+});
+
+// 2. FindMy Bitmask Parser
+// Bit 0-2: Level (0-7), Bit 3: Charging (1 = Yes)
+const parseBatteryBitmask = (status: string | number) => {
+    const raw = typeof status === "string" ? parseInt(status, 10) : status;
+    if (isNaN(raw)) return { label: "Unknown", color: "bg-slate-100 text-slate-500" };
+
+    const level = raw & 0x07;
+    const isCharging = (raw >> 3) & 0x01;
+
+    const levels: Record<number, { label: string; color: string }> = {
+        0: { label: "Empty", color: "bg-red-200 text-red-900" },
+        1: { label: "Critical", color: "bg-red-100 text-red-700" },
+        2: { label: "Low", color: "bg-orange-100 text-orange-700" },
+        3: { label: "Mid-Low", color: "bg-yellow-100 text-yellow-700" },
+        4: { label: "Medium", color: "bg-blue-100 text-blue-700" },
+        5: { label: "Mid-High", color: "bg-emerald-50 text-emerald-600" },
+        6: { label: "High", color: "bg-emerald-100 text-emerald-700" },
+        7: { label: "Full", color: "bg-green-100 text-green-800" },
+    };
+
+    const info = levels[level] || { label: "Unknown", color: "bg-slate-100 text-slate-500" };
+    return {
+        ...info,
+        label: isCharging ? `${info.label} ⚡` : info.label
+    };
+};
 
 export default function LogDashboard() {
     const [logs, setLogs] = useState<PollLog[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Initialize filters with explicit typing
+    // State for search and windowing
     const [filters, setFilters] = useState<FetchLogsParams & { offset: number }>({
-        start: new Date(Date.now() - 86400000).toISOString().slice(0, 19).replace('T', ' '),
-        end: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        part: "",
         limit: 100,
         offset: 0
     });
 
-    // Load Map component without SSR
-    const LogMap = dynamic(() => import("./LogMap"), {
-        ssr: false,
-        loading: () => <div className="h-[500px] w-full bg-slate-100 animate-pulse rounded-lg flex items-center justify-center">Loading Map...</div>
-    });
-
-    const loadData = async (): Promise<void> => {
+    const loadData = async () => {
         setLoading(true);
         setError(null);
         try {
             const result = await fetchPollLogs(filters);
             setLogs(result.data);
         } catch (err) {
-            setError(err instanceof Error ? err.message : "An unknown error occurred");
+            setError(err instanceof Error ? err.message : "Connection failed");
         } finally {
             setLoading(false);
         }
     };
 
-    const getBatteryLabel = (status: string) => {
-        const mapping: Record<string, { label: string; color: string }> = {
-            "ok": { label: "Healthy", color: "bg-emerald-100 text-emerald-800" },
-            "low": { label: "Warning", color: "bg-amber-100 text-amber-800" },
-            "crit": { label: "Critical", color: "bg-red-100 text-red-800" },
-            "charging": { label: "Charging", color: "bg-blue-100 text-blue-800" },
-        };
-        return mapping[status.toLowerCase()] || { label: status, color: "bg-slate-100 text-slate-800" };
-    };
-
+    // Trigger load on filter/pagination change
     useEffect(() => {
-        loadData();
-    }, [filters.offset]);
-
-    const handleDateChange = (e: ChangeEvent<HTMLInputElement>, field: 'start' | 'end'): void => {
-        setFilters(prev => ({
-            ...prev,
-            [field]: e.target.value.replace('T', ' '),
-            offset: 0 // Reset pagination on filter change
-        }));
-    };
+        const timer = setTimeout(loadData, 300); // Debounce typing
+        return () => clearTimeout(timer);
+    }, [filters.part, filters.offset]);
 
     return (
-        <div className="p-6 max-w-7xl mx-auto">
-            <header className="flex flex-wrap gap-4 justify-between items-end mb-8">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-800">System Logs</h1>
-                    <p className="text-slate-500 text-sm">Monitoring device health and geolocation</p>
-                </div>
+        <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+            <div className="max-w-7xl mx-auto space-y-6">
 
-                <div className="flex flex-wrap gap-4 items-center">
-                    {/* Part Filter Input */}
-                    <div className="flex flex-col gap-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase">Search Part</label>
+                {/* Header & Controls */}
+                <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h1 className="text-2xl font-bold text-slate-900">FindMy Asset Tracker</h1>
+                        <p className="text-slate-500 text-sm">Real-time telemetry and battery bitmask analysis</p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-3">
                         <input
                             type="text"
-                            placeholder="e.g. SENSOR_01"
-                            className="border p-2 rounded text-sm min-w-[200px]"
-                            onChange={(e) => setFilters(p => ({ ...p, part: e.target.value, offset: 0 }))}
+                            placeholder="Search Part Name (e.g. AirTag)..."
+                            className="px-4 py-2 border border-slate-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 outline-none min-w-[280px]"
+                            onChange={(e) => setFilters(prev => ({ ...prev, part: e.target.value, offset: 0 }))}
                         />
+                        <button
+                            onClick={loadData}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-medium transition-colors shadow-sm"
+                        >
+                            Refresh
+                        </button>
+                    </div>
+                </header>
+
+                {/* Map Section */}
+                <section className="h-[450px] w-full relative rounded-xl border border-slate-200 shadow-sm overflow-hidden z-0">
+                    <LogMap logs={logs} />
+                </section>
+
+                {/* Data Table Section */}
+                <section className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                    {error && (
+                        <div className="p-4 bg-red-50 border-b border-red-100 text-red-600 text-sm font-medium">
+                            Error: {error}
+                        </div>
+                    )}
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead className="bg-slate-50 border-b border-slate-200">
+                                <tr>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Device ID</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Battery Health</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Coordinates</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Timestamp</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {loading ? (
+                                    <tr>
+                                        <td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic">
+                                            Fetching system logs...
+                                        </td>
+                                    </tr>
+                                ) : logs.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={4} className="px-6 py-12 text-center text-slate-400">
+                                            No logs found matching your criteria.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    logs.map((log, i) => {
+                                        const battery = parseBatteryBitmask(log.battery_status);
+                                        return (
+                                            <tr key={`${log.part_name}-${i}`} className="hover:bg-slate-50 transition-colors">
+                                                <td className="px-6 py-4 font-semibold text-slate-700">{log.part_name}</td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold shadow-sm ${battery.color}`}>
+                                                        {battery.label}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-slate-500 font-mono">
+                                                    {log.latitude.toFixed(6)}, {log.longitude.toFixed(6)}
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-slate-400 font-mono">
+                                                    {log.timestamp}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
                     </div>
 
-                    <div className="flex flex-col gap-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase">Time Range</label>
+                    {/* Pagination Footer */}
+                    <footer className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+                        <p className="text-xs text-slate-500">
+                            Showing {logs.length} results (Offset: {filters.offset})
+                        </p>
                         <div className="flex gap-2">
-                            <input
-                                type="datetime-local"
-                                className="border p-2 rounded text-sm"
-                                onChange={(e) => handleDateChange(e, 'start')}
-                            />
-                            <button onClick={() => loadData()} className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-semibold">
-                                Apply
+                            <button
+                                disabled={filters.offset === 0}
+                                onClick={() => setFilters(p => ({ ...p, offset: Math.max(0, p.offset - 100) }))}
+                                className="px-4 py-1.5 border border-slate-300 rounded bg-white text-sm font-medium hover:bg-slate-50 disabled:opacity-40"
+                            >
+                                Prev
+                            </button>
+                            <button
+                                disabled={logs.length < 100}
+                                onClick={() => setFilters(p => ({ ...p, offset: p.offset + 100 }))}
+                                className="px-4 py-1.5 border border-slate-300 rounded bg-white text-sm font-medium hover:bg-slate-50 disabled:opacity-40"
+                            >
+                                Next
                             </button>
                         </div>
-                    </div>
-                </div>
-            </header>
-
-            {/* Map and Table Logic */}
-            <table className="w-full text-left">
-                {/* ... thead ... */}
-                <tbody>
-                    {logs.map((log) => {
-                        const battery = getBatteryLabel(log.battery_status);
-                        return (
-                            <tr key={`${log.part_name}-${log.timestamp}`} className="border-b">
-                                <td className="p-4 font-mono text-xs">{log.timestamp}</td>
-                                <td className="p-4 font-semibold">{log.part_name}</td>
-                                <td className="p-4 text-sm">{log.latitude}, {log.longitude}</td>
-                                <td className="p-4">
-                                    <span className={`px-2 py-1 rounded-md text-xs font-bold ${battery.color}`}>
-                                        {battery.label}
-                                    </span>
-                                </td>
-                            </tr>
-                        );
-                    })}
-                </tbody>
-            </table>
+                    </footer>
+                </section>
+            </div>
         </div>
     );
 }
