@@ -2,7 +2,11 @@ import sqlite3
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from datetime import datetime, timedelta, timezone
+import logging
 
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 app = Flask(__name__)
 CORS(app)
@@ -16,6 +20,7 @@ def get_db_connection():
 @app.route('/api/poll-logs', methods=['GET'])
 def get_poll_logs():
     now = datetime.now()
+    logging.info(f"Request received at {now}")
     default_start = (now - timedelta(hours=24)).strftime('%Y-%m-%d %H:%M:%S')
     
     start_time = request.args.get('start', default=default_start)
@@ -38,6 +43,7 @@ def get_poll_logs():
     try:
         with get_db_connection() as conn:
             logs = conn.execute(query, params).fetchall()
+            logging.info(f"Fetched {len(logs)} logs, head : {dict(logs[0])}")
         return jsonify({"status": "success", "count": len(logs), "data": [dict(row) for row in logs]}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
