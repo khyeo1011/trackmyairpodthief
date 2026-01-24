@@ -4,12 +4,15 @@
 This repo contains the scripts necessary to ~~stalk~~ track the thief that stole your apple devices Utilizing Apple's Find My and store them so that you can possibly confront them by analyzing their typical day-to-day behavior. At this point this is a POC, and hasn't really been tested.
 
 > [!IMPORTANT] 
-> Please do not approach thiefs to confront them. It is dangerous and might lead to physical injury. Please contact your local police authority and if you do choose to confront them, please do so in a public space with lots of people.
+> Please do not approach thiefs to confront them. It is possibly dangerous and carries legal risks. Please contact your local police authority and if you do choose to confront them, please do so in a public space with lots of people.
 
 ## Requirements & Steps
-- Python 3.12
+- Python 3.12.*
 - Mac device running MacOS 14 (Can be VM)
   - You can have a newer MacOS version, but you would have to find a way to dump the encryption keys. See also: https://docs.mikealmel.ooo/FindMy.py/getstarted/02-fetching.html
+- SQLite3
+- An apple account connected to your device.
+- A computer that you can keep running
 
 Start by creating a virtual environment by 
 ```
