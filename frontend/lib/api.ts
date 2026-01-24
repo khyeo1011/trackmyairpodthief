@@ -2,7 +2,7 @@
 import { FetchLogsParams,ApiResponse } from "./types";
 
 
-const API_BASE = "http://localhost:5000/api";
+const API_BASE = process.env.BACKEND_HOST;
 
 export async function fetchPollLogs({
   start,
