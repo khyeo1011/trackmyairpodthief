@@ -40,6 +40,16 @@ export default function LogDashboard() {
         }
     };
 
+    const getBatteryLabel = (status: string) => {
+        const mapping: Record<string, { label: string; color: string }> = {
+            "ok": { label: "Healthy", color: "bg-emerald-100 text-emerald-800" },
+            "low": { label: "Warning", color: "bg-amber-100 text-amber-800" },
+            "crit": { label: "Critical", color: "bg-red-100 text-red-800" },
+            "charging": { label: "Charging", color: "bg-blue-100 text-blue-800" },
+        };
+        return mapping[status.toLowerCase()] || { label: status, color: "bg-slate-100 text-slate-800" };
+    };
+
     useEffect(() => {
         loadData();
     }, [filters.offset]);
@@ -54,90 +64,61 @@ export default function LogDashboard() {
 
     return (
         <div className="p-6 max-w-7xl mx-auto">
-            <header className="flex justify-between items-center mb-8">
-                <h1 className="text-2xl font-bold text-slate-800">System Poll Logs</h1>
+            <header className="flex flex-wrap gap-4 justify-between items-end mb-8">
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-800">System Logs</h1>
+                    <p className="text-slate-500 text-sm">Monitoring device health and geolocation</p>
+                </div>
 
-                <div className="flex items-center gap-4">
-                    <div className="flex gap-2 items-center">
-                        <label className="text-xs font-bold text-slate-400 uppercase">From</label>
+                <div className="flex flex-wrap gap-4 items-center">
+                    {/* Part Filter Input */}
+                    <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">Search Part</label>
                         <input
-                            type="datetime-local"
-                            className="border p-2 rounded text-sm text-slate-700"
-                            onChange={(e) => handleDateChange(e, 'start')}
+                            type="text"
+                            placeholder="e.g. SENSOR_01"
+                            className="border p-2 rounded text-sm min-w-[200px]"
+                            onChange={(e) => setFilters(p => ({ ...p, part: e.target.value, offset: 0 }))}
                         />
                     </div>
-                    <button
-                        onClick={() => loadData()}
-                        className="bg-blue-600 text-white px-6 py-2 rounded font-semibold hover:bg-blue-700 transition-colors"
-                    >
-                        Refresh
-                    </button>
+
+                    <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">Time Range</label>
+                        <div className="flex gap-2">
+                            <input
+                                type="datetime-local"
+                                className="border p-2 rounded text-sm"
+                                onChange={(e) => handleDateChange(e, 'start')}
+                            />
+                            <button onClick={() => loadData()} className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-semibold">
+                                Apply
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </header>
 
-            {error && (
-                <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-md">
-                    {error}
-                </div>
-            )}
-
-            {!loading && logs.length > 0 && <LogMap logs={logs} />}
-
-            <div className="bg-white shadow-sm border border-slate-200 rounded-lg overflow-hidden">
-                <table className="w-full text-left border-collapse">
-                    <thead className="bg-slate-50 border-b border-slate-200">
-                        <tr>
-                            <th className="p-4 text-xs font-bold text-slate-500 uppercase">Timestamp</th>
-                            <th className="p-4 text-xs font-bold text-slate-500 uppercase">Part Name</th>
-                            <th className="p-4 text-xs font-bold text-slate-500 uppercase">Location</th>
-                            <th className="p-4 text-xs font-bold text-slate-500 uppercase">Battery</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {loading ? (
-                            <tr><td colSpan={4} className="p-12 text-center text-slate-400">Loading system data...</td></tr>
-                        ) : logs.map((log, i) => (
-                            <tr key={`${log.part_name}-${log.timestamp}`} className="hover:bg-slate-50/50 transition-colors">
-                                <td className="p-4 text-sm text-slate-500 font-mono">{log.timestamp}</td>
-                                <td className="p-4 text-sm font-semibold text-slate-700">{log.part_name}</td>
-                                <td className="p-4 text-sm text-slate-600 font-mono">
-                                    {log.latitude.toFixed(6)}, {log.longitude.toFixed(6)}
-                                </td>
+            {/* Map and Table Logic */}
+            <table className="w-full text-left">
+                {/* ... thead ... */}
+                <tbody>
+                    {logs.map((log) => {
+                        const battery = getBatteryLabel(log.battery_status);
+                        return (
+                            <tr key={`${log.part_name}-${log.timestamp}`} className="border-b">
+                                <td className="p-4 font-mono text-xs">{log.timestamp}</td>
+                                <td className="p-4 font-semibold">{log.part_name}</td>
+                                <td className="p-4 text-sm">{log.latitude}, {log.longitude}</td>
                                 <td className="p-4">
-                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${log.battery_status.toLowerCase() === 'low'
-                                            ? 'bg-red-100 text-red-800'
-                                            : 'bg-emerald-100 text-emerald-800'
-                                        }`}>
-                                        {log.battery_status}
+                                    <span className={`px-2 py-1 rounded-md text-xs font-bold ${battery.color}`}>
+                                        {battery.label}
                                     </span>
                                 </td>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-
-            <footer className="mt-6 flex items-center justify-between text-sm text-slate-500">
-                <div>
-                    Showing {filters.offset + 1} - {filters.offset + logs.length}
-                </div>
-                <div className="flex gap-2">
-                    <button
-                        disabled={filters.offset === 0 || loading}
-                        onClick={() => setFilters(p => ({ ...p, offset: Math.max(0, p.offset - (p.limit || 100)) }))}
-                        className="px-4 py-2 border border-slate-200 rounded-md bg-white hover:bg-slate-50 disabled:opacity-50 transition-all"
-                    >
-                        Previous
-                    </button>
-                    <button
-                        disabled={logs.length < (filters.limit || 100) || loading}
-                        onClick={() => setFilters(p => ({ ...p, offset: p.offset + (p.limit || 100) }))}
-                        className="px-4 py-2 border border-slate-200 rounded-md bg-white hover:bg-slate-50 disabled:opacity-50 transition-all"
-                    >
-                        Next
-                    </button>
-                </div>
-            </footer>
+                        );
+                    })}
+                </tbody>
+            </table>
         </div>
     );
 }

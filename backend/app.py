@@ -14,19 +14,25 @@ def get_db_connection():
 
 @app.route('/api/poll-logs', methods=['GET'])
 def get_poll_logs():
-    # Define a 24-hour default window
     now = datetime.utcnow()
     default_start = (now - timedelta(hours=24)).strftime('%Y-%m-%d %H:%M:%S')
-    default_end = now.strftime('%Y-%m-%d %H:%M:%S')
-
-    # Retrieve parameters with fallback to defaults
+    
     start_time = request.args.get('start', default=default_start)
-    end_time = request.args.get('end', default=default_end)
+    end_time = request.args.get('end', default=now.strftime('%Y-%m-%d %H:%M:%S'))
+    part_filter = request.args.get('part') # New filter
     limit = request.args.get('limit', default=100, type=int)
     offset = request.args.get('offset', default=0, type=int)
 
-    query = "SELECT * FROM poll_logs WHERE timestamp BETWEEN ? AND ? ORDER BY timestamp DESC LIMIT ? OFFSET ?"
-    params = [start_time, end_time, limit, offset]
+    # Base query
+    query = "SELECT * FROM poll_logs WHERE timestamp BETWEEN ? AND ?"
+    params = [start_time, end_time]
+
+    if part_filter:
+        query += " AND part_name = ?"
+        params.append(part_filter)
+
+    query += " ORDER BY timestamp DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
 
     try:
         with get_db_connection() as conn:

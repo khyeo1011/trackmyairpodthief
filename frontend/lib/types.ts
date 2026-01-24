@@ -15,6 +15,7 @@ export interface ApiResponse {
 export interface FetchLogsParams {
   start?: string;
   end?: string;
+  part?: string; 
   limit?: number;
   offset?: number;
 }
