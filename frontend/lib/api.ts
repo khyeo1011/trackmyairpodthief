@@ -2,7 +2,7 @@
 import { FetchLogsParams,ApiResponse } from "./types";
 
 
-const API_BASE = process.env.BACKEND_HOST;
+const API_BASE = process.env.NEXT_PUBLIC_BACKEND_HOST;
 
 export async function fetchPollLogs({
   start,
