@@ -16,7 +16,7 @@ from findmy import (
 
 # Configuration
 load_dotenv()
-DB_NAME = "airpods_tracker.db"
+DB_NAME = "locations.db"
 POLL_INTERVAL = 300 
 ACC_STORE = "account.json"
 ANI_LIBS = "ani_libs.bin"
@@ -72,23 +72,27 @@ def init_db():
     with sqlite3.connect(DB_NAME) as conn:
         conn.execute('''
             CREATE TABLE IF NOT EXISTS poll_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 part_name TEXT,
                 timestamp DATETIME,
                 latitude REAL,
                 longitude REAL,
                 battery_status TEXT,
                 poll_status TEXT,
-                error_message TEXT
+                error_message TEXT,
+                PRIMARY KEY (part_name, timestamp)
             )
         ''')
+        conn.execute('''
+            CREATE INDEX IF NOT EXISTS idx_timestamp ON poll_logs (timestamp)
+        ''')
+        conn.commit()
 
-def log_event(part_name, status: PollStatus, lat=None, lon=None, bat=None, err=None):
+def log_event(part_name, status: PollStatus, timestamp : datetime = None, lat=None, lon=None, bat=None, err=None):
     with sqlite3.connect(DB_NAME) as conn:
         conn.execute('''
             INSERT INTO poll_logs (part_name, timestamp, latitude, longitude, battery_status, poll_status, error_message)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (part_name, datetime.now().isoformat(), lat, lon, bat, status.value, err))
+        ''', (part_name, timestamp.isoformat() if timestamp else datetime.now().isoformat(), lat, lon, bat, status.value, err))
         conn.commit()
 
 def poll_loop():
@@ -110,11 +114,15 @@ def poll_loop():
             locations = account.fetch_location(acc_list)
             
             for name, accessory in accessories.items():
-                loc = locations.get(accessory)
+                logging.info(f"Polling {name} : {paths[name]}")
+                loc = locations.get(accessory) 
+                
                 if loc:
-                    log_event(name, PollStatus.SUCCESS, loc.latitude, loc.longitude, bin(loc.status))
+                    log_event(name, PollStatus.SUCCESS, loc.timestamp, loc.latitude, loc.longitude, bin(loc.status))
+                    logging.critical(f"Poll Success: {name}: {loc.latitude}, {loc.longitude}")
                 else:
                     log_event(name, PollStatus.FAILED_MISSING, err="No data returned")
+                    logging.critical(f"Poll Failed: {name}")
             
             # Persist any updated tokens/cookies from the poll
             account.to_json(ACC_STORE)
