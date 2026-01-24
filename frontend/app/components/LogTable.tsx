@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { PollLog } from "@/lib/types";
 import BatteryStatus from "./BatteryStatus";
 
@@ -9,6 +10,14 @@ interface LogTableProps {
 }
 
 export default function LogTable({ logs, loading }: LogTableProps) {
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+    const sortedLogs = [...logs].sort((a, b) => {
+        const dateA = new Date(a.timestamp).getTime();
+        const dateB = new Date(b.timestamp).getTime();
+        return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+    });
+
     return (
         <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -17,7 +26,17 @@ export default function LogTable({ logs, loading }: LogTableProps) {
                         <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Device ID</th>
                         <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Battery Health</th>
                         <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Coordinates</th>
-                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Timestamp</th>
+                        <th 
+                            className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors select-none"
+                            onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                        >
+                            <div className="flex items-center gap-1">
+                                Timestamp
+                                <span className={`text-slate-400 text-[10px] transition-transform duration-200 ${sortOrder === 'asc' ? 'rotate-180' : ''}`}>
+                                    ▼
+                                </span>
+                            </div>
+                        </th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -34,7 +53,7 @@ export default function LogTable({ logs, loading }: LogTableProps) {
                             </td>
                         </tr>
                     ) : (
-                        logs.map((log, i) => (
+                        sortedLogs.map((log, i) => (
                             <tr key={`${log.part_name}-${i}`} className="hover:bg-slate-50 transition-colors">
                                 <td className="px-6 py-4 font-semibold text-slate-700">{log.part_name}</td>
                                 <td className="px-6 py-4">
@@ -44,7 +63,13 @@ export default function LogTable({ logs, loading }: LogTableProps) {
                                     {log.latitude.toFixed(6)}, {log.longitude.toFixed(6)}
                                 </td>
                                 <td className="px-6 py-4 text-sm text-slate-400 font-mono">
-                                    {log.timestamp}
+                                    {new Date(log.timestamp).toLocaleString(undefined, {
+                                        year: "numeric",
+                                        month: "short",
+                                        day: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                    })}
                                 </td>
                             </tr>
                         ))
