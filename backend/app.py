@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 app = Flask(__name__)
 CORS(app)
-DB_NAME = "database.db"
+DB_NAME = "../locations.db"
 
 def get_db_connection():
     conn = sqlite3.connect(DB_NAME)
