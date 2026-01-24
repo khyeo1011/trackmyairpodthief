@@ -1,7 +1,8 @@
 import sqlite3
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
 
 app = Flask(__name__)
 CORS(app)
@@ -14,7 +15,7 @@ def get_db_connection():
 
 @app.route('/api/poll-logs', methods=['GET'])
 def get_poll_logs():
-    now = datetime.utcnow()
+    now = datetime.now()
     default_start = (now - timedelta(hours=24)).strftime('%Y-%m-%d %H:%M:%S')
     
     start_time = request.args.get('start', default=default_start)
