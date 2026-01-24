@@ -34,3 +34,6 @@ def get_poll_logs():
         return jsonify({"status": "success", "count": len(logs), "data": [dict(row) for row in logs]}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+    
+if __name == '__main__':
+    app.run(debug=True, port=5000, host='0.0.0.0')
