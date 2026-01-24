@@ -19,11 +19,25 @@ const LogMap = dynamic(() => import("./LogMap"), {
 // 2. FindMy Bitmask Parser
 // Bit 0-2: Level (0-7), Bit 3: Charging (1 = Yes)
 const parseBatteryBitmask = (status: string | number) => {
-    const raw = typeof status === "string" ? parseInt(status, 10) : status;
+    const raw = typeof status === "string"
+        ? (status.startsWith("0b") ? parseInt(status.slice(2), 2) : parseInt(status, 10))
+        : status;
+
     if (isNaN(raw)) return { label: "Unknown", color: "bg-slate-100 text-slate-500" };
 
-    const level = raw & 0x07;
-    const isCharging = (raw >> 3) & 0x01;
+    const isCharging = (raw >> 7) & 0x01;
+    const percentage = raw & 0x7F; // Isolates bits 0-6
+
+    // Categorize percentage into levels
+    let levelKey = 0;
+    if (percentage >= 100) levelKey = 7;
+    else if (percentage > 85) levelKey = 6;
+    else if (percentage > 70) levelKey = 5;
+    else if (percentage > 50) levelKey = 4;
+    else if (percentage > 25) levelKey = 3;
+    else if (percentage > 10) levelKey = 2;
+    else if (percentage > 0) levelKey = 1;
+    else levelKey = 0;
 
     const levels: Record<number, { label: string; color: string }> = {
         0: { label: "Empty", color: "bg-red-200 text-red-900" },
@@ -36,10 +50,11 @@ const parseBatteryBitmask = (status: string | number) => {
         7: { label: "Full", color: "bg-green-100 text-green-800" },
     };
 
-    const info = levels[level] || { label: "Unknown", color: "bg-slate-100 text-slate-500" };
+    const info = levels[levelKey];
     return {
         ...info,
-        label: isCharging ? `${info.label} ⚡` : info.label
+        percentage,
+        label: isCharging ? `${info.label} (${percentage}%) ⚡` : `${info.label} (${percentage}%)`
     };
 };
 
