@@ -22,11 +22,11 @@ def get_db_connection():
 @app.route("/api/poll-logs", methods=["GET"])
 def get_poll_logs():
     now = datetime.now()
-    default_start = (now - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+    default_start = (now - timedelta(hours=24)).isoformat()
     logging.info(f"Request received at {now}")
 
     start_time = request.args.get("start", default=default_start)
-    end_time = request.args.get("end", default=now.strftime("%Y-%m-%d %H:%M:%S"))
+    end_time = request.args.get("end", default=now.isoformat())
     part_filter = request.args.get("part")  # New filter
     limit = request.args.get("limit", default=100, type=int)
     offset = request.args.get("offset", default=0, type=int)
