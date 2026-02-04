@@ -1,0 +1,39 @@
+# .github/labeler.yml
+
+# Standard labeler configuration for automated PR categorization.
+# Documentation: https://github.com/actions/labeler
+
+'area: frontend':
+  - changed-files:
+      - any-glob-to-any-file: 'src/frontend/**/*'
+      - any-glob-to-any-file: 'public/**/*'
+
+'area: backend':
+  - changed-files:
+      - any-glob-to-any-file: 'src/backend/**/*'
+      - any-glob-to-any-file: 'api/**/*'
+
+'area: documentation':
+  - changed-files:
+      - any-glob-to-any-file: '**/*.md'
+      - any-glob-to-any-file: 'docs/**/*'
+
+'area: testing':
+  - changed-files:
+      - any-glob-to-any-file: '**/*.test.js'
+      - any-glob-to-any-file: '**/*.spec.ts'
+      - any-glob-to-any-file: 'tests/**/*'
+
+'area: infrastructure':
+  - changed-files:
+      - any-glob-to-any-file: '.github/workflows/**/*'
+      - any-glob-to-any-file: 'terraform/**/*'
+      - any-glob-to-any-file: 'docker-compose.yml'
+      - any-glob-to-any-file: 'Dockerfile'
+
+'type: dependencies':
+  - changed-files:
+      - any-glob-to-any-file: 'package.json'
+      - any-glob-to-any-file: 'package-lock.json'
+      - any-glob-to-any-file: 'go.mod'
+      - any-glob-to-any-file: 'Cargo.toml'
