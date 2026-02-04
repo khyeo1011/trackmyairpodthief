@@ -34,6 +34,6 @@ python3 -m findmy decrypt --out-dir devices/
 
 
 ## Feautures
-- [ ] Create Logic for Fetching Data and Storing into a Database
-- [ ] Create a GUI to map out the location and paths the thief took
+- [x] Create Logic for Fetching Data and Storing into a Database
+- [x] Create a GUI to map out the location and paths the thief took
 - [ ] Create a model that given the time of the day and the day of the week, predicts the thiefs location.
