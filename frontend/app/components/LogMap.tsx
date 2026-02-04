@@ -2,20 +2,18 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
-import { GoogleMap, useJsApiLoader, Marker, InfoWindow, Polyline, HeatmapLayer } from "@react-google-maps/api";
+import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from "@react-google-maps/api";
 import { PollLog } from "@/lib/types";
+import { getIconUrl } from "@/lib/utils";
+import { useMapRoute } from "@/hooks/useMapRoute";
 import BatteryStatus from "./BatteryStatus";
 
 // Libraries must be a static constant to prevent re-loads
 const LIBRARIES: ("visualization")[] = ["visualization"];
-
-// Helper to generate SVG Data URI for Google Maps Markers
-const getIconUrl = (opacity: number) => {
-  const svg = `
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#4f46e5" width="40" height="40" style="opacity: ${opacity}; filter: drop-shadow(0 4px 3px rgb(0 0 0 / 0.2));">
-    <path fill-rule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 00-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 002.682 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
-  </svg>`;
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+const MAP_OPTIONS = {
+  streetViewControl: false,
+  mapTypeControl: false,
+  fullscreenControl: false,
 };
 
 const defaultIconUrl = getIconUrl(0.6);
@@ -27,21 +25,6 @@ interface LogMapProps {
   showRoute?: boolean;
 }
 
-function getDistanceFromLatLonInM(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371e3; // metres
-  const φ1 = lat1 * Math.PI / 180;
-  const φ2 = lat2 * Math.PI / 180;
-  const Δφ = (lat2 - lat1) * Math.PI / 180;
-  const Δλ = (lon2 - lon1) * Math.PI / 180;
-
-  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-    Math.cos(φ1) * Math.cos(φ2) *
-    Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return R * c;
-}
-
 export default function LogMap({ logs, showHeatmap = true, showRoute = false }: LogMapProps) {
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
@@ -51,13 +34,17 @@ export default function LogMap({ logs, showHeatmap = true, showRoute = false }: 
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [selectedLog, setSelectedLog] = useState<PollLog | null>(null);
 
-  // Route & Animation State
-  const [routeSegments, setRouteSegments] = useState<{ path: google.maps.LatLngLiteral[], color: string }[]>([]);
-  const [fullPath, setFullPath] = useState<google.maps.LatLngLiteral[]>([]);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [animationIndex, setAnimationIndex] = useState(0);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  const animationRef = useRef<number>(0);
+  // Use custom hook for Route & Animation State
+  const {
+      routeSegments,
+      fullPath,
+      isAnimating,
+      setIsAnimating,
+      animationIndex,
+      setAnimationIndex,
+      playbackSpeed,
+      setPlaybackSpeed
+  } = useMapRoute(map, logs);
 
   const onLoad = useCallback((map: google.maps.Map) => {
     setMap(map);
@@ -76,131 +63,7 @@ export default function LogMap({ logs, showHeatmap = true, showRoute = false }: 
     }
   }, [map, logs]);
 
-  // Calculate Route Segments
-  useEffect(() => {
-    if (!map || !window.google || logs.length < 2) {
-      setRouteSegments([]);
-      setFullPath([]);
-      return;
-    }
-
-    const sortedLogs = [...logs].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-
-    // Filter logs that are too close (50m threshold)
-    const filteredLogs = [sortedLogs[0]];
-    for (let i = 1; i < sortedLogs.length; i++) {
-      const prev = filteredLogs[filteredLogs.length - 1];
-      const curr = sortedLogs[i];
-      if (getDistanceFromLatLonInM(prev.latitude, prev.longitude, curr.latitude, curr.longitude) > 50) {
-        filteredLogs.push(curr);
-      }
-    }
-
-    if (filteredLogs.length < 2) {
-      setRouteSegments([]);
-      setFullPath([]);
-      return;
-    }
-
-    const abortController = new AbortController();
-    const ds = new google.maps.DirectionsService();
-
-    const fetchRoutes = async () => {
-      setRouteSegments([]);
-      const accumulatedPath: google.maps.LatLngLiteral[] = [{ lat: filteredLogs[0].latitude, lng: filteredLogs[0].longitude }];
-
-      for (let i = 0; i < filteredLogs.length - 1; i++) {
-        if (abortController.signal.aborted) return;
-
-        const start = { lat: filteredLogs[i].latitude, lng: filteredLogs[i].longitude };
-        const end = { lat: filteredLogs[i + 1].latitude, lng: filteredLogs[i + 1].longitude };
-
-        const totalSegments = filteredLogs.length - 1;
-        const progress = i / Math.max(1, totalSegments - 1);
-        const hue = 240 * (1 - progress);
-        const color = `hsl(${hue}, 80%, 50%)`;
-
-        try {
-          const [driving, walking] = await Promise.allSettled([
-            ds.route({ origin: start, destination: end, travelMode: google.maps.TravelMode.DRIVING }),
-            ds.route({ origin: start, destination: end, travelMode: google.maps.TravelMode.WALKING })
-          ]);
-
-          let bestPath: google.maps.LatLngLiteral[] = [start, end];
-          const dRes = driving.status === 'fulfilled' ? driving.value : null;
-          const wRes = walking.status === 'fulfilled' ? walking.value : null;
-
-          if (dRes && wRes) {
-            const dDist = dRes.routes[0]?.legs[0]?.distance?.value || Infinity;
-            const wDist = wRes.routes[0]?.legs[0]?.distance?.value || Infinity;
-            bestPath = (dDist <= wDist ? dRes : wRes).routes[0].overview_path.map(p => ({ lat: p.lat(), lng: p.lng() }));
-          } else if (dRes) bestPath = dRes.routes[0].overview_path.map(p => ({ lat: p.lat(), lng: p.lng() }));
-          else if (wRes) bestPath = wRes.routes[0].overview_path.map(p => ({ lat: p.lat(), lng: p.lng() }));
-
-          setRouteSegments(prev => [...prev, { path: bestPath, color }]);
-
-          if (bestPath.length > 0) {
-            const last = accumulatedPath[accumulatedPath.length - 1];
-            const first = bestPath[0];
-            const skipFirst = last && Math.abs(last.lat - first.lat) < 0.0001 && Math.abs(last.lng - first.lng) < 0.0001;
-            accumulatedPath.push(...(skipFirst ? bestPath.slice(1) : bestPath));
-          }
-
-          await new Promise(r => setTimeout(r, 300)); // Rate limit
-        } catch (e) {
-          setRouteSegments(prev => [...prev, { path: [start, end], color }]);
-          accumulatedPath.push(end);
-        }
-      }
-      setFullPath(accumulatedPath);
-    };
-
-    fetchRoutes();
-    return () => abortController.abort();
-  }, [map, logs]);
-
-  // Reset animation when route changes
-  useEffect(() => {
-    setIsAnimating(false);
-    setAnimationIndex(0);
-  }, [fullPath]);
-
-
-  const heatmapRef = useRef<google.maps.visualization.HeatmapLayer | null>(null);
-  useEffect(() => {
-    if (!showHeatmap && heatmapRef.current) {
-      heatmapRef.current.setMap(null);
-    }
-  }, [showHeatmap]); useEffect(() => {
-    if (!showHeatmap && heatmapRef.current) {
-      heatmapRef.current.setMap(null);
-    }
-  }, [showHeatmap]);
-
-  useEffect(() => {
-    if (isAnimating && fullPath.length > 0) {
-      let lastTime = performance.now();
-      const animate = (time: number) => {
-        const delta = time - lastTime;
-        lastTime = time;
-        const increment = (delta / 1000) * 10 * playbackSpeed; // Base: 10 points/sec
-
-        setAnimationIndex(prev => {
-          const next = prev + increment;
-          if (next >= fullPath.length - 1) {
-            setIsAnimating(false);
-            return fullPath.length - 1;
-          }
-          return next;
-        });
-        animationRef.current = requestAnimationFrame(animate);
-      };
-      animationRef.current = requestAnimationFrame(animate);
-    }
-    return () => {
-      if (animationRef.current) cancelAnimationFrame(animationRef.current);
-    };
-  }, [isAnimating, fullPath.length, playbackSpeed]);
+  const heatmapLayerRef = useRef<google.maps.visualization.HeatmapLayer | null>(null);
 
   // Heatmap Data
   const heatmapData = useMemo(() => {
@@ -211,14 +74,69 @@ export default function LogMap({ logs, showHeatmap = true, showRoute = false }: 
     }));
   }, [logs, isLoaded]);
 
-  if (loadError) return <div className="p-4 text-red-500">Error loading Google Maps</div>;
-  if (!isLoaded) return (
-    <div className="h-full w-full bg-slate-100 animate-pulse flex items-center justify-center">
-      <span className="text-slate-400 font-medium">Loading Google Maps...</span>
-    </div>
-  );
+  // Manage Heatmap Lifecycle Manually
+  useEffect(() => {
+    if (!map || typeof google === 'undefined') return;
 
-  const animatedPosition = (() => {
+    // Cleanup function to remove existing layer
+    const cleanupHeatmap = () => {
+      if (heatmapLayerRef.current) {
+        heatmapLayerRef.current.setMap(null);
+        heatmapLayerRef.current = null;
+      }
+    };
+
+    if (showHeatmap && heatmapData.length > 0) {
+      // Clean up any potential stale layer first
+      cleanupHeatmap();
+
+      const heatmap = new google.maps.visualization.HeatmapLayer({
+        data: heatmapData,
+        radius: 30,
+        opacity: 0.6,
+      });
+
+      heatmap.setMap(map);
+      heatmapLayerRef.current = heatmap;
+    } else {
+      cleanupHeatmap();
+    }
+
+    return cleanupHeatmap;
+  }, [map, showHeatmap, heatmapData]);
+  
+  const routeLinesRef = useRef<google.maps.Polyline[]>([]);
+
+  // Manage Route Lifecycle Manually
+  useEffect(() => {
+    if (!map || typeof google === 'undefined') return;
+
+    const cleanupRoutes = () => {
+      routeLinesRef.current.forEach(line => line.setMap(null));
+      routeLinesRef.current = [];
+    };
+
+    if (showRoute && routeSegments.length > 0) {
+      cleanupRoutes();
+
+      routeSegments.forEach(seg => {
+        const line = new google.maps.Polyline({
+          path: seg.path,
+          strokeColor: seg.color,
+          strokeOpacity: 0.8,
+          strokeWeight: 5,
+        });
+        line.setMap(map);
+        routeLinesRef.current.push(line);
+      });
+    } else {
+      cleanupRoutes();
+    }
+
+    return cleanupRoutes;
+  }, [map, showRoute, routeSegments]);
+
+  const animatedPosition = useMemo(() => {
     if (fullPath.length === 0) return null;
     const idx = Math.floor(animationIndex);
     const nextIdx = Math.min(idx + 1, fullPath.length - 1);
@@ -233,49 +151,39 @@ export default function LogMap({ logs, showHeatmap = true, showRoute = false }: 
       lat: p1.lat + (p2.lat - p1.lat) * fraction,
       lng: p1.lng + (p2.lng - p1.lng) * fraction
     };
-  })();
+  }, [fullPath, animationIndex]);
+
+  // Auto-follow the pin when animating
+  useEffect(() => {
+    if (isAnimating && animatedPosition && map) {
+      map.setCenter(animatedPosition);
+    }
+  }, [isAnimating, animatedPosition, map]);
+
+  const mapCenter = useMemo(() => {
+    return logs.length > 0 ? { lat: logs[0].latitude, lng: logs[0].longitude } : { lat: 0, lng: 0 };
+  }, [logs]);
+
+  if (loadError) return <div className="p-4 text-red-500">Error loading Google Maps</div>;
+  if (!isLoaded) return (
+    <div className="h-full w-full bg-slate-100 animate-pulse flex items-center justify-center">
+      <span className="text-slate-400 font-medium">Loading Google Maps...</span>
+    </div>
+  );
 
   return (
     <div className="h-full w-full relative">
       <GoogleMap
         mapContainerClassName="h-full w-full rounded-xl"
-        center={logs.length > 0 ? { lat: logs[0].latitude, lng: logs[0].longitude } : { lat: 0, lng: 0 }}
+        center={mapCenter}
         zoom={3}
         onLoad={onLoad}
         onUnmount={onUnmount}
-        options={{
-          streetViewControl: false,
-          mapTypeControl: false,
-          fullscreenControl: false,
-        }}
+        options={MAP_OPTIONS}
       >
-        {showHeatmap && heatmapData.length > 0 && (
-          <HeatmapLayer
-            data={heatmapData}
-            options={{ radius: 30, opacity: 0.6 }}
-            onLoad={(heatmap) => {
-              heatmapRef.current = heatmap;
-            }}
-            onUnmount={() => {
-              if (heatmapRef.current) {
-                heatmapRef.current.setMap(null);
-                heatmapRef.current = null;
-              }
-            }}
-          />
-        )}
 
-        {showRoute && routeSegments.map((seg, i) => (
-          <Polyline
-            key={i}
-            path={seg.path}
-            options={{
-              strokeColor: seg.color,
-              strokeOpacity: 0.8,
-              strokeWeight: 5,
-            }}
-          />
-        ))}
+
+
 
         {isAnimating && animatedPosition && (
           <Marker

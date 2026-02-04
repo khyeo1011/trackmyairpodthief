@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import dynamic from "next/dynamic";
-import { PollLog, FetchLogsParams } from "@/lib/types";
-import { fetchPollLogs } from "@/lib/api";
+import { usePollLogs } from "@/hooks/usePollLogs";
 import DashboardHeader from "./DashboardHeader";
 import LogTable from "./LogTable";
 import Pagination from "./Pagination";
@@ -20,44 +19,18 @@ const LogMap = dynamic(() => import("./LogMap"), {
 });
 
 export default function LogDashboard() {
-    const [logs, setLogs] = useState<PollLog[]>([]);
-    const [loading, setLoading] = useState<boolean>(true);
-    const [error, setError] = useState<string | null>(null);
+    const { 
+        logs, 
+        loading, 
+        error, 
+        filters, 
+        loadData, 
+        handleSearch, 
+        handlePageChange 
+    } = usePollLogs();
+
     const [showHeatmap, setShowHeatmap] = useState<boolean>(true);
     const [showRoute, setShowRoute] = useState<boolean>(false);
-
-    const [filters, setFilters] = useState<FetchLogsParams & { offset: number }>({
-        part: "",
-        limit: 100,
-        offset: 0
-    });
-
-    const loadData = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const result = await fetchPollLogs(filters);
-            setLogs(result.data);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "Connection failed");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Trigger load on filter/pagination change
-    useEffect(() => {
-        const timer = setTimeout(loadData, 300); // Debounce typing
-        return () => clearTimeout(timer);
-    }, [filters.part, filters.offset]);
-
-    const handleSearch = (term: string) => {
-        setFilters(prev => ({ ...prev, part: term, offset: 0 }));
-    };
-
-    const handlePageChange = (newOffset: number) => {
-        setFilters(prev => ({ ...prev, offset: newOffset }));
-    };
 
     return (
         <div className="min-h-screen bg-slate-50 p-4 md:p-8">

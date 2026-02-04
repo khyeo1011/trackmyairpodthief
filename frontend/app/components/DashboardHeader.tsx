@@ -14,7 +14,7 @@ export default function DashboardHeader({ onSearch, onRefresh, showHeatmap, onTo
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
                 <h1 className="text-2xl font-bold text-slate-900">Thief Tracker</h1>
-                <p className="text-slate-500 text-sm">I'm tracking the thief</p>
+                <p className="text-slate-500 text-sm">I&apos;m tracking the thief</p>
             </div>
 
             <div className="flex flex-wrap gap-3">
