@@ -1,3 +1,5 @@
 findmy
 schedule
 dotenv
+flask
+flask-CORS
