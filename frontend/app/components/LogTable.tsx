@@ -7,9 +7,11 @@ import BatteryStatus from "./BatteryStatus";
 interface LogTableProps {
     logs: PollLog[];
     loading: boolean;
+    selectedLog: PollLog | null;
+    onLogClick: (log: PollLog) => void;
 }
 
-export default function LogTable({ logs, loading }: LogTableProps) {
+export default function LogTable({ logs, loading, selectedLog, onLogClick }: LogTableProps) {
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
     const sortedLogs = [...logs].sort((a, b) => {
@@ -54,7 +56,15 @@ export default function LogTable({ logs, loading }: LogTableProps) {
                         </tr>
                     ) : (
                         sortedLogs.map((log, i) => (
-                            <tr key={`${log.part_name}-${i}`} className="hover:bg-slate-50 transition-colors">
+                            <tr 
+                                key={`${log.part_name}-${i}`} 
+                                className={`transition-colors cursor-pointer ${
+                                    selectedLog === log 
+                                        ? "bg-indigo-50 hover:bg-indigo-100" 
+                                        : "hover:bg-slate-50"
+                                }`}
+                                onClick={() => onLogClick(log)}
+                            >
                                 <td className="px-6 py-4 font-semibold text-slate-700">{log.part_name}</td>
                                 <td className="px-6 py-4">
                                     <BatteryStatus status={log.battery_status} />

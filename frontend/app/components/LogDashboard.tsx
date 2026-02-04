@@ -6,6 +6,7 @@ import { usePollLogs } from "@/hooks/usePollLogs";
 import DashboardHeader from "./DashboardHeader";
 import LogTable from "./LogTable";
 import Pagination from "./Pagination";
+import { PollLog } from "@/lib/types";
 
 
 // 1. Dynamic Map Import (Prevents SSR Errors)
@@ -31,6 +32,7 @@ export default function LogDashboard() {
 
     const [showHeatmap, setShowHeatmap] = useState<boolean>(true);
     const [showRoute, setShowRoute] = useState<boolean>(false);
+    const [selectedLog, setSelectedLog] = useState<PollLog | null>(null);
 
     return (
         <div className="min-h-screen bg-slate-50 p-4 md:p-8">
@@ -48,7 +50,13 @@ export default function LogDashboard() {
 
                 {/* Map Section */}
                 <section className="h-[600px] w-full relative rounded-xl border border-slate-200 shadow-sm overflow-hidden z-0">
-                    <LogMap logs={logs} showHeatmap={showHeatmap} showRoute={showRoute} />
+                    <LogMap 
+                        logs={logs} 
+                        showHeatmap={showHeatmap} 
+                        showRoute={showRoute} 
+                        selectedLog={selectedLog}
+                        onLogSelect={setSelectedLog}
+                    />
                 </section>
 
                 {/* Data Table Section */}
@@ -59,7 +67,12 @@ export default function LogDashboard() {
                         </div>
                     )}
 
-                    <LogTable logs={logs} loading={loading} />
+                    <LogTable 
+                        logs={logs} 
+                        loading={loading} 
+                        selectedLog={selectedLog}
+                        onLogClick={setSelectedLog}
+                    />
 
                     <Pagination 
                         offset={filters.offset} 

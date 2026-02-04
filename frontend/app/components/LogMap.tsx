@@ -23,16 +23,23 @@ interface LogMapProps {
   logs: PollLog[];
   showHeatmap?: boolean;
   showRoute?: boolean;
+  selectedLog: PollLog | null;
+  onLogSelect: (log: PollLog | null) => void;
 }
 
-export default function LogMap({ logs, showHeatmap = true, showRoute = false }: LogMapProps) {
+export default function LogMap({ 
+  logs, 
+  showHeatmap = true, 
+  showRoute = false,
+  selectedLog,
+  onLogSelect 
+}: LogMapProps) {
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
     libraries: LIBRARIES,
   });
 
   const [map, setMap] = useState<google.maps.Map | null>(null);
-  const [selectedLog, setSelectedLog] = useState<PollLog | null>(null);
 
   // Use custom hook for Route & Animation State
   const {
@@ -206,14 +213,14 @@ export default function LogMap({ logs, showHeatmap = true, showRoute = false }: 
               scaledSize: new google.maps.Size(40, 40),
               anchor: new google.maps.Point(20, 40)
             }}
-            onClick={() => setSelectedLog(log)}
+            onClick={() => onLogSelect(log)}
           />
         ))}
 
         {selectedLog && (
           <InfoWindow
             position={{ lat: selectedLog.latitude, lng: selectedLog.longitude }}
-            onCloseClick={() => setSelectedLog(null)}
+            onCloseClick={() => onLogSelect(null)}
             options={{ pixelOffset: new google.maps.Size(0, -40) }}
           >
             <div className="text-sm p-1">
