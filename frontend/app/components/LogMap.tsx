@@ -221,10 +221,27 @@ export default function LogMap({
           <InfoWindow
             position={{ lat: selectedLog.latitude, lng: selectedLog.longitude }}
             onCloseClick={() => onLogSelect(null)}
-            options={{ pixelOffset: new google.maps.Size(0, -40) }}
+            options={{ 
+              pixelOffset: new google.maps.Size(0, -40),
+              headerDisabled: true 
+            }}
           >
             <div className="text-sm p-1">
-              <strong className="block text-center border border-slate-300 rounded bg-slate-50 px-2 py-1 mb-2">{selectedLog.part_name}</strong>
+              <div className="flex items-center justify-between border border-slate-300 rounded bg-slate-50 px-2 py-1 mb-2">
+                <strong className="text-center flex-grow">{selectedLog.part_name}</strong>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onLogSelect(null);
+                  }}
+                  className="ml-2 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none"
+                  aria-label="Close"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
               <div className="mb-2">
                 {new Date(selectedLog.timestamp).toLocaleString(undefined, {
                   year: "numeric", month: "short", day: "numeric",
